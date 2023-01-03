@@ -1,0 +1,333 @@
+● [종합 연습문제]
+select count(*) from tb_student; --6개
+select count(*) from tb_gwamok; --9개
+select count(*) from tb_sugang; --14개
+
+문1) 디자인 교과목중에서 학점이 제일 많은 교과목을 수강신청한 명단을 조회하시오
+    (학번, 이름, 과목코드)    
+d002 g1005 진달래;
+
+select gcode, gname, ghakjum from tb_gwamok where gcode like 'd%' order by ghakjum desc;
+
+select gcode, gname, ghakjum, rownum
+from(
+select gcode, gname, ghakjum from tb_gwamok where gcode like 'd%' order by ghakjum desc
+) AA
+where rownum = 1;
+
+select BB.*, SU.hakno  
+from(
+    select gcode, gname, ghakjum, rownum
+    from(
+    select gcode, gname, ghakjum from tb_gwamok where gcode like 'd%'order by ghakjum desc
+    ) AA
+    where rownum = 1
+) BB join tb_sugang SU
+on BB.gcode=SU.gcode;
+
+학번, 이름, 과목코드
+select CC.hakno, ST.uname, CC.gcode
+from( 
+    select BB.*, SU.hakno
+    from(
+        select gcode, gname, ghakjum, rownum
+        from(
+        select gcode, gname, ghakjum from tb_gwamok where gcode like 'd%' order by ghakjum desc
+        ) AA
+        where rownum = 1
+    ) BB join tb_sugang SU
+    on BB.gcode=SU.gcode
+) CC join tb_student ST
+on CC.hakno = ST.hakno;
+
+--선생님 풀이
+--디자인교과목의 학점 조회하기
+select *
+from tb_gwamok
+where gcode like 'd%'
+order by ghakjum desc;
+
+--1)디자인 교과목중에서 학점이 제일 많은 학점 조회하기
+select max(ghakjum)
+from tb_gwamok
+where gcode like 'd%';
+
+--2) 1)결과에서 나온 학점(5)과 동일한 학점을 갖고 있는 행에서 과목코드 선택
+--  즉, 디자인 교과목중에서 학점이 제일 많은 과목코드(단, 중복된 학점이 없다는 가정하에)
+select gcode
+from tb_gwamok
+where ghakjum=(5); --d002
+
+select gcode
+from tb_gwamok
+where ghakjum=(select max(ghakjum)from tb_gwamok where gcode like 'd%');
+
+--이상태에서 테이블 3개 조인하면 될듯(아래는 내 풀이)
+select SU.hakno, SU.gcode, ST.uname
+from tb_sugang SU join (select gcode
+from tb_gwamok
+where ghakjum=(select max(ghakjum)from tb_gwamok where gcode like 'd%')
+) AA
+on SU.gcode = AA.gcode join tb_student ST
+on SU.hakno = ST.hakno;
+
+--선생님 풀이 이어서
+--3) 2)에서 나온 과목코드(d002)를 수강신청한 명단을 조회
+select gcode, hakno from tb_sugang where gcode=('d002');
+
+select gcode, hakno
+from tb_sugang
+where gcode=(
+    select gcode
+    from tb_gwamok
+    where ghakjum=(select max(ghakjum)from tb_gwamok where gcode like 'd%')
+);
+
+--4)3)의 결과를 AA테이블로 만든 후 , 학생 테이블을 조인해서 이름 가져오기
+select AA.gcode, AA.hakno, ST.uname
+from(
+      select gcode, hakno
+      from tb_sugang
+      where gcode =(
+                    select gcode
+                    from tb_gwamok
+                    where ghakjum=(select max(ghakjum)from tb_gwamok where gcode like 'd%')
+                    )
+      ) AA join tb_student ST
+on AA.hakno=ST.hakno;
+
+문2) 학번별 수강신청한 총학점을 구하고 학번별 정렬해서(정렬은 아무말 안 하면 오름차순) 줄번호 4~6행 조회하시오
+    (단, 수강신청하지 않은 학생의 총학점도 0으로 표시)_이름도 찍을 수 있으면 찍어보기
+g1004   0   4
+g1005   12  5
+g1006   3   6
+left outer join해서 gwamok추가 조인, sum.;
+
+select *
+from tb_student ST left outer join tb_sugang SU
+on ST.hakno = SU.hakno
+order by ST.hakno;
+
+select ST.hakno, ST.uname, SU.gcode
+from tb_student ST left outer join tb_sugang SU
+on ST.hakno = SU.hakno
+order by ST.hakno;
+
+select AA.hakno, AA.uname, sum(GW.ghakjum)
+from(
+    select ST.hakno, ST.uname, SU.gcode
+    from tb_student ST left outer join tb_sugang SU
+    on ST.hakno = SU.hakno
+)AA left outer join tb_gwamok GW
+on AA.gcode = GW.gcode
+group by AA.hakno, AA.uname
+order by AA.hakno;
+
+select BB.*, rownum
+from(
+    select AA.hakno, AA.uname, sum(GW.ghakjum)
+    from(
+        select ST.hakno, ST.uname, SU.gcode
+        from tb_student ST left outer join tb_sugang SU
+        on ST.hakno = SU.hakno
+    )AA left outer join tb_gwamok GW
+    on AA.gcode = GW.gcode
+    group by AA.hakno, AA.uname
+    order by AA.hakno
+) BB;
+
+select *
+from(
+    select BB.hakno, BB.uname, nvl(총학점, 0), rownum as rnum
+    from(
+        select AA.hakno, AA.uname, sum(GW.ghakjum) as 총학점
+        from(
+            select ST.hakno, ST.uname, SU.gcode
+            from tb_student ST left outer join tb_sugang SU
+            on ST.hakno = SU.hakno
+        )AA left outer join tb_gwamok GW
+        on AA.gcode = GW.gcode
+        group by AA.hakno, AA.uname
+        order by AA.hakno
+    ) BB
+)
+where 4<=rnum and rnum<=6;
+
+--선생님 풀이
+--학생테이블 조회하기
+select hakno, uname from tb_student order by hakno;
+
+--1) 수강신청한 과목의 학점 가져오기
+select SU.hakno, SU.gcode, GW.ghakjum
+from tb_sugang SU join tb_gwamok GW
+on SU.gcode=GW.gcode;
+
+--2) 학번별로 총학점 구하기
+select SU.hakno, sum(GW.ghakjum) as 총학점
+from tb_sugang SU join tb_gwamok GW
+on SU.gcode=GW.gcode
+group by SU.hakno;
+
+--4)hakno로 정렬
+    --3) 수강신청하지 않은 학생들도 가져올 수 있도록 학생테이블 left join 하고,
+        --2)결과 (AA테이블)를 붙임
+select ST.hakno, ST.uname, nvl(AA.총학점, 0)
+from tb_student ST left outer join (
+                                     select SU.hakno, sum(GW.ghakjum) as 총학점
+                                     from tb_sugang SU join tb_gwamok GW
+                                     on SU.gcode=GW.gcode
+                                     group by SU.hakno
+                                     )AA 
+on ST.hakno = AA.hakno
+order by ST.hakno;
+
+--5) 줄번호 추가 (줄번호가 있는 상태에서 정렬됨)
+select ST.hakno, ST.uname, nvl(AA.총학점, 0), rownum
+from tb_student ST left outer join (
+                                     select SU.hakno, sum(GW.ghakjum) as 총학점
+                                     from tb_sugang SU join tb_gwamok GW
+                                     on SU.gcode=GW.gcode
+                                     group by SU.hakno
+                                     )AA 
+on ST.hakno = AA.hakno
+order by ST.hakno;
+
+--6) 5의 결과를 셀프조인하고 나서, 줄번호 추가하기
+select BB.hakno, BB.uname, BB.총학점2, rownum as rnum
+from(
+      select ST.hakno, ST.uname, nvl(AA.총학점, 0) as 총학점2
+      from tb_student ST left outer join (
+                                           select SU.hakno, sum(GW.ghakjum) as 총학점
+                                           from tb_sugang SU join tb_gwamok GW
+                                           on SU.gcode=GW.gcode
+                                           group by SU.hakno
+                                           )AA 
+      on ST.hakno = AA.hakno
+      order by ST.hakno
+     ) BB;
+     
+--7) 6)의 결과를 셀프조인(CC테이블)하고 줄번호(rnum) 4~6 조회하기
+select CC.hakno, CC.총학점2, rnum
+from(
+select BB.hakno, BB.uname, BB.총학점2, rownum as rnum
+from(
+      select ST.hakno, ST.uname, nvl(AA.총학점, 0) as 총학점2
+      from tb_student ST left outer join (
+                                           select SU.hakno, sum(GW.ghakjum) as 총학점
+                                           from tb_sugang SU join tb_gwamok GW
+                                           on SU.gcode=GW.gcode
+                                           group by SU.hakno
+                                           )AA 
+      on ST.hakno = AA.hakno
+      order by ST.hakno
+     ) BB
+)CC
+where 4<=rnum and rnum<=6;
+
+문3) 학번별로 수강신청 총학점을 구하고, 총학점순으로 내림차순 정렬후
+     위에서 부터 1건만 조회하시오 (학번, 이름, 총학점) 
+-- 수강테이블에 행추가 해주세요
+-- (총학점이 다 같은 값이여서 결과확인하기가 조금 애매 합니다)
+insert into tb_sugang(sno,hakno,gcode) values(sugang_seq.nextval,'g1001','p005');
+commit;
+
+g1001 14 홍길동 1;
+
+select AA.hakno, AA.uname, nvl(sum(GW.ghakjum),0) as 총학점
+from(
+     select ST.hakno, ST.uname, SU.gcode
+     from tb_student ST left outer join tb_sugang SU
+     on ST.hakno = SU.hakno
+    )AA left outer join tb_gwamok GW
+on AA.gcode = GW.gcode
+group by AA.hakno, AA.uname
+order by 총학점 desc;
+
+select BB.hakno, BB.uname, BB.총학점, rownum as rnum
+from(
+    select AA.hakno, AA.uname, nvl(sum(GW.ghakjum),0) as 총학점
+    from(
+         select ST.hakno, ST.uname, SU.gcode
+         from tb_student ST left outer join tb_sugang SU
+         on ST.hakno = SU.hakno
+        )AA left outer join tb_gwamok GW
+    on AA.gcode = GW.gcode
+    group by AA.hakno, AA.uname
+    order by 총학점 desc
+) BB;
+
+select *
+from(
+    select BB.hakno, BB.uname, BB.총학점, rownum as rnum
+    from(
+        select AA.hakno, AA.uname, nvl(sum(GW.ghakjum),0) as 총학점
+        from(
+             select ST.hakno, ST.uname, SU.gcode
+             from tb_student ST left outer join tb_sugang SU
+             on ST.hakno = SU.hakno
+            )AA left outer join tb_gwamok GW
+        on AA.gcode = GW.gcode
+        group by AA.hakno, AA.uname
+        order by 총학점 desc
+    ) BB
+)
+where rnum=1;
+
+--2번의 선생님 답 응용
+select CC.hakno, CC.uname, CC.총학점2, rnum
+from(
+select BB.hakno, BB.uname, BB.총학점2, rownum as rnum
+from(
+      select ST.hakno, ST.uname, nvl(AA.총학점, 0) as 총학점2
+      from tb_student ST left outer join (
+                                           select SU.hakno, sum(GW.ghakjum) as 총학점
+                                           from tb_sugang SU join tb_gwamok GW
+                                           on SU.gcode=GW.gcode
+                                           group by SU.hakno
+                                           )AA 
+      on ST.hakno = AA.hakno
+      order by 총학점2 desc
+     ) BB
+)CC
+where rnum=1;
+
+--1)과목코드가 일치하는 학점 가져오기
+select SU.hakno, SU.gcode, GW.ghakjum
+from tb_sugang SU join tb_gwamok GW
+on SU.gcode=GW.gcode;
+
+--2) 학번별로 총학점 구하고, 총학점순으로 내림차순 정렬하기
+select SU.hakno, sum(GW.ghakjum) as 총학점
+from tb_sugang SU join tb_gwamok GW
+on SU.gcode=GW.gcode
+group by SU.hakno
+order by sum(GW.ghakjum) desc;
+
+--3) 2)의 결과를 AA테이블로 만들고, 학생테이블 조인해서 이름 가져오기
+select AA.hakno, AA.총학점, ST.uname, rownum as rnum
+from (
+    select SU.hakno, sum(GW.ghakjum) as 총학점
+    from tb_sugang SU join tb_gwamok GW
+    on SU.gcode=GW.gcode
+    group by SU.hakno
+    order by sum(GW.ghakjum) desc
+)AA join tb_student ST
+on AA.hakno = ST.hakno;
+
+
+--4) 3)의 결과를 셀프조인하고 줄번호를 이용해서 위에서 부터 1건만 조회하기
+select hakno, 총학점, uname, rnum
+from(
+        select AA.hakno, AA.총학점, ST.uname, rownum as rnum
+        from (
+            select SU.hakno, sum(GW.ghakjum) as 총학점
+            from tb_sugang SU join tb_gwamok GW
+            on SU.gcode=GW.gcode
+            group by SU.hakno
+            order by sum(GW.ghakjum) desc
+        )AA join tb_student ST
+        on AA.hakno = ST.hakno
+)
+where rnum=1;
+
+-------------------------------------------------
